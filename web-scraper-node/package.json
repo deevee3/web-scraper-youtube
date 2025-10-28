@@ -11,6 +11,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "puppeteer": "^22.15.0"
+    "csv-parse": "^6.1.0",
+    "puppeteer": "^22.15.0",
+    "slugify": "^1.6.6"
   }
 }
