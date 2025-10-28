@@ -29,6 +29,9 @@ class Settings:
     schedule_cron: str = "0 2 * * *"  # default 2 AM daily
     proxy_url: Optional[str] = None
     captcha_api_key: Optional[str] = None
+    ui_database_path: Path = Path("ui_runs.db")
+    ui_basic_auth_username: Optional[str] = None
+    ui_basic_auth_password: Optional[str] = None
 
 
 def load_settings(env_file: str | Path = ".env") -> Settings:
@@ -54,6 +57,9 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
         schedule_cron=_get_env("SCRAPER_SCHEDULE_CRON", "0 2 * * *"),
         proxy_url=_get_env("SCRAPER_PROXY_URL"),
         captcha_api_key=_get_env("SCRAPER_CAPTCHA_API_KEY"),
+        ui_database_path=Path(_get_env("SCRAPER_UI_DB_PATH", "ui_runs.db")),
+        ui_basic_auth_username=_get_env("SCRAPER_UI_USERNAME"),
+        ui_basic_auth_password=_get_env("SCRAPER_UI_PASSWORD"),
     )
 
 
