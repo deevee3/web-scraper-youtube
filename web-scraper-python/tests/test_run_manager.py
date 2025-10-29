@@ -37,6 +37,7 @@ async def run_manager(tmp_path: Path) -> RunManager:
         store.mark_running = MagicMock()
         store.mark_succeeded = MagicMock()
         store.mark_failed = MagicMock()
+        store.set_archive_path = MagicMock()
         store.list_runs = MagicMock(return_value=[])
         store.get_run = MagicMock(return_value=None)
         return store
@@ -64,3 +65,62 @@ async def test_enqueue_run_calls_store(tmp_path: Path, run_manager: RunManager) 
     input_file.write_text("url\nhttps://example.com")
     await run_manager.enqueue_run(input_path=input_file, source="upload")
     run_manager.store.create_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_background_sets_archive_path(tmp_path: Path) -> None:
+    settings = Settings(input_urls_path=tmp_path / "urls.csv")
+    settings.output_root = tmp_path / "output"
+    settings.logs_root = tmp_path / "logs"
+    settings.templates_root = tmp_path / "templates"
+    settings.output_root.mkdir()
+    settings.logs_root.mkdir()
+    settings.templates_root.mkdir()
+
+    store = MagicMock()
+    store.set_archive_path = MagicMock()
+    store.mark_running = MagicMock()
+    store.mark_failed = MagicMock()
+    store.mark_succeeded = MagicMock()
+
+    manager = RunManager(settings=settings, store=store)
+
+    output_dir = settings.output_root / "run"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    csv_path = output_dir / "shopify_import.csv"
+    result = DummyResult(csv_path)
+
+    def exec_pipeline(run_id, pipeline_settings):
+        pipeline_settings.output_dir.mkdir(exist_ok=True)
+        csv_path.write_text("Handle,Title\n")
+        return result
+
+    manager._execute_pipeline = exec_pipeline  # type: ignore
+    manager._build_pipeline_settings = MagicMock(  # type: ignore
+        return_value=PipelineSettings(
+            input_path=tmp_path / "input.csv",
+            output_dir=output_dir,
+            templates_dir=settings.templates_root,
+            proxy_url=None,
+            captcha_key=None,
+            detail_template_name=settings.detail_template_name,
+            zip_outputs=settings.zip_outputs,
+            zip_images_name=settings.zip_images_name,
+            zip_screenshots_name=settings.zip_screenshots_name,
+        )
+    )
+
+    input_path = tmp_path / "input.csv"
+    input_path.write_text("url\nhttps://example.com")
+
+    await manager._run_background("abc", input_path)
+
+    assert store.set_archive_path.call_count == 2
+    pending_call, final_call = store.set_archive_path.call_args_list
+    assert pending_call.args[0] == "abc"
+    assert pending_call.args[1].name == "deliverables.zip"
+    assert pending_call.args[1].parent == output_dir
+    assert final_call.args[1].name == "deliverables.zip"
+    assert final_call.args[1].parent == output_dir
+    store.mark_succeeded.assert_called_once()

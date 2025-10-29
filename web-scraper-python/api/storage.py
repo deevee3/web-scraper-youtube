@@ -155,6 +155,13 @@ class RunStore:
     def mark_failed(self, run_id: str, error: str) -> None:
         self._update_fields(run_id, status=RunStatus.FAILED, error=error)
 
+    def set_archive_path(self, run_id: str, archive_path: Optional[Path]) -> None:
+        path_str = str(archive_path) if archive_path else None
+        self._update_fields(run_id, archive_path=path_str)
+
+    def set_error(self, run_id: str, error: Optional[str]) -> None:
+        self._update_fields(run_id, error=error)
+
     def get_run(self, run_id: str) -> Optional[RunRecord]:
         with self._connect() as conn:
             conn.row_factory = sqlite3.Row

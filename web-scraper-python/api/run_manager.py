@@ -67,7 +67,15 @@ class RunManager:
             self.store.mark_failed(run_id, str(exc))
             return
 
-        archive_path = self._prepare_archive(pipeline_settings.output_dir)
+        # mark archive as pending while zipping large directories
+        pending_archive = pipeline_settings.output_dir / "deliverables.zip"
+        self.store.set_archive_path(run_id, pending_archive)
+        archive_path = await loop.run_in_executor(
+            self.executor,
+            self._prepare_archive,
+            pipeline_settings.output_dir,
+        )
+        self.store.set_archive_path(run_id, archive_path)
         log_path = self.settings.logs_root / f"scraper-{run_id}.log"
         self.store.mark_succeeded(
             run_id,
@@ -103,12 +111,13 @@ class RunManager:
         )
 
     def _prepare_archive(self, output_dir: Path) -> Path:
-        archive_base = output_dir / "deliverables"
-        archive_path = archive_base.with_suffix(".zip")
-        if archive_path.exists():
-            archive_path.unlink()
-        archive_str = shutil.make_archive(str(archive_base), "zip", output_dir)
-        return Path(archive_str)
+        temp_base = output_dir.parent / f"{output_dir.name}-deliverables"
+        temp_archive = Path(shutil.make_archive(str(temp_base), "zip", output_dir))
+        final_archive = output_dir / "deliverables.zip"
+        if final_archive.exists():
+            final_archive.unlink()
+        shutil.move(str(temp_archive), final_archive)
+        return final_archive
 
 
 def configure_manager(settings: Settings, store_factory: Callable[[Path], RunStore]) -> RunManager:
